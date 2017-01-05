@@ -1,7 +1,8 @@
 
-""" modPH a library of functions used by phoneHome
+""" modPH a library of functions used by PumpCalc
 
 0.00    20161229    Chris Janes     original Devemopment
+0.01    20160105    Chris Janes     Update
 
 """
 
@@ -108,7 +109,7 @@ class modPC:
 
 	def getconn(self):
 		""" This makes a connection to the relevent DB"""
-		self.Debug = 0
+		self.Debug = True
 
 		try:
 			connectstring = 'C:\Users\chris\PycharmProjects\PumpCalc.py\Dev\PumpCalc.db3'
@@ -250,6 +251,8 @@ class modPC:
 		lenArray = len(array)
 
 		print "PumpCalc    Series " + str(array[0][0]) + "  Cycle " + str(array[0][1])
+		print "MaxWeight = " + str(self.MaxWeight)
+		print "MinWeight = " + str(self.MinWeight)
 		print ""
 		print "DataPoint\tWeight\tRate All\tRate 1\tEnd All\t\tEnd 1"
 		for line in array:
@@ -279,25 +282,27 @@ class modPC:
 #######################################################################
 
 	def checkexistsindatacalc(self, Series, Cycle, Timestamp):
-		self.Debug = 1
-		if self.Debug:
-			print "into checkexistsindatacalc"
+		self.Debug = True
+		if self.Debug == True:
+			print "\n\n\n\n\ninto checkexistsindatacalc"
 		connection = self.getconn()
 		cur = connection.cursor()
 		strsql = "select count(*) from DataCalc where Series = " + str(Series) + " and Cycle = " + str(
 			Cycle) + " and Timestamp = " + str(Timestamp) + " ;"
-		if self.Debug:
+		if self.Debug == True:
 			print "checkexistsindatacalc strsql = " + str(strsql)
 		cur.execute(strsql)
 		array = cur.fetchall()
 		cur.close()
 		if (array[0][0] == 0):
-			if self.Debug:
+			if self.Debug == True:
 				print "Record Does not Exist"
+			print "\n\n"
 			return False
 		else:
-			if self.Debug:
+			if self.Debug == True:
 				print "Record does exist"
+			print "\n\n"
 			return True
 
 	def calculatecurrent(self):
@@ -305,77 +310,123 @@ class modPC:
 		return retValue
 
 	def calculate(self, Series, Cycle):
-		self.Debug = True
-		if self.Debug:
-			print "into calculate"
+		#self.Debug = True
+
+		if self.Debug == True :
+			print "\n\n\n\ninto calculate"
+
+#
+# Drop existing DataCalc rows for this cycle
+#
+
+
 		connection = self.getconn()
 		cur = connection.cursor()
-		strsql = "select * from DataPoints where Series = " + str(Series) + " and Cycle = " + str(Cycle) + " order by Timestamp;"
-		if self.Debug:
+		strsql = "DELETE from DataCalc where Series = " + str(Series) + " and Cycle = " + str(Cycle) + ";"
+		if self.Debug == True :
+			print "DELETE *  for cycle, strsql = " + str(strsql)
+		cur.execute(strsql)
+		cur.close()
+#
+#   Check that entries have been dropped
+#
+		cur = connection.cursor()
+		strsql = "SELECT count (*) from DataCalc where Series = " + str(Series) + " and Cycle = " + str(Cycle) + " ;"
+		if self.Debug == True :
+			print "SELECT strsql = " + str(strsql)
+		cur.execute(strsql)
+		array = cur.fetchall()
+		cur.close()
+		connection.commit()
+		lenArray = len(array)
+		if self.Debug == True :
+			print "lenArray = " + str(lenArray)
+		if self.Debug == True :
+			print "No of entries in DP for this cycle" + str(array[0][0])
+
+#
+# get datapoints for this Cycle
+#
+
+		cur = connection.cursor()
+		strsql = "select * from DataPoints where Series = " + str(Series) + " and Cycle = " + str(
+			Cycle) + " order by Weight desc;"
+		if self.Debug == True :
 			print "strsql = " + str(strsql)
 		cur.execute(strsql)
 		array = cur.fetchall()
 		cur.close()
 		lenArray = len(array)
-		if self.Debug:
+		if self.Debug == True :
 			print "lenArray = " + str(lenArray)
 		count = 0
+
+#
+#	loop through datapoints
+#
+
 		while (int(count) < lenArray):
-			if self.Debug:
+			if self.Debug == True :
+				print "Into While "
 				print "Count = " + str(count)
 			line = array[count]
 			str(line)
-
+			print "Calculate DP line = " + str(line)
 			weightleft = int(line[3]) - int(self.MinWeight)
-			if self.Debug:
+
+			if self.Debug == True:
 				print "weightleft = " + str(weightleft)
 
-			if (self.checkexistsindatacalc(line[0], line[1], line[2]) == False):
-				connection = self.getconn()
-				cur = connection.cursor()
-				strsqlInsert = "insert into DataCalc(Series, Cycle, Timestamp, Weight) values (" + str(line[0]) + ", " + str(line[1]) + ", " + str(line[2]) + ", " + str(line[3]) + ");"
-				if self.Debug:
-					print "strsql DataCalc Insert = " + str(strsqlInsert)
-				print "strsql DataCalc Insert = " + str(strsqlInsert)
-				cur.execute(strsqlInsert)
-				connection.commit()
-				if self.Debug:
-					print "count = " + str(count)
-				if (count > 0):
-					wtdeltaall = int(array[0][3]) - int(line[3])
-					if self.Debug:
-						print "wtdeltaall (" + str(int(array[0][3])) + " - " + str(int(line[3])) + ") = " + str(wtdeltaall)
-					tmdeltaall = int(line[2]) - int(array[0][2])
-					if self.Debug:
-						print "tmdeltaall ( " + str(int(line[2])) + " - " + str(int(array[0][2])) + "  = " + str(tmdeltaall)
-					rateall = float(wtdeltaall) / (float(tmdeltaall) / 3600)
-					if self.Debug:
-						print "rateall (" + str(int(wtdeltaall)) + " - " + str((int(tmdeltaall) / 3600)) + ")= " + str(rateall)
+			connection = self.getconn()
+			cur = connection.cursor()
+			strsql = "insert into DataCalc(Series, Cycle, Timestamp, Weight) values (" + str(line[0]) + ", " + str(line[1]) + ", " + str(line[2]) + ", " + str(line[3]) + ");"
+			if self.Debug == True :
+				print "strsql DataCalc Insert = " + str(strsql)
+			cur.execute(strsql)
+			connection.commit()
 
-					endall = int(line[2]) + (float(weightleft) / float(rateall) * float(3600))
-					if self.Debug:
-						print "endall (" + str(line[2]) + str((float(weightleft) / float(rateall) * float(3600))) + "} = " + str(endall)
 
-					# Rate01 Calcs
-					wtdelta1 = int(array[int(count) - 1][3]) - int(line[3])
-					if self.Debug:
-						print "wtdelta1(" + str(int(array[int(count) - 1][3])) + " - " + str(line[3]) + ") = " + str(wtdelta1)
+			if  self.Debug == True :
+				print "\nStart Calc's"
+				print "count = " + str(count)
+			if (count > 0):
+				wtdeltaall = int(array[0][3]) - int(line[3])
+				if  self.Debug == True :
+					print "wtdeltaall (" + str(int(array[0][3])) + " - " + str(int(line[3])) + ") = " + str(wtdeltaall)
+				tmdeltaall = int(line[2]) - int(array[0][2])
+				if  self.Debug == True :
+					print "tmdeltaall ( " + str(int(line[2])) + " - " + str(int(array[0][2])) + "  = " + str(tmdeltaall)
+				rateall = float(wtdeltaall) / (float(tmdeltaall) / 3600)
+				if  self.Debug == True :
+					print "rateall (" + str(int(wtdeltaall)) + " - " + str((int(tmdeltaall) / 3600)) + ")= " + str(rateall)
 
-					tmDelta1 = int(line[2]) - int(array[int(count) - 1][2])
-					if self.Debug:
-						print "tmDelta1(" + str(line[2]) + " - " + str(array[int(count) - 1][2]) + ") = " + str(tmDelta1)
-					rate1 = float(wtdelta1) / (float(tmDelta1) / 3600)
-					if self.Debug:
-						print "rate1 = " + str(rate1)
+				endall = int(line[2]) + (float(weightleft) / float(rateall) * float(3600))
+				if  self.Debug == True :
+					print "endall (" + str(line[2]) + str((float(weightleft) / float(rateall) * float(3600))) + "} = " + str(endall)
 
-					End1 = int(line[2]) + (float(weightleft) / float(rate1) * float(3600))
-					if self.Debug:
-						print "End1 (" + str(line[2]) + str((float(weightleft) / float(rate1) * float(3600))) + "} = " + str(End1)
+				# Rate01 Calcs
+				wtdelta1 = int(array[int(count) - 1][3]) - int(line[3])
+				if  self.Debug == True :
+					print "wtdelta1(" + str(int(array[int(count) - 1][3])) + " - " + str(line[3]) + ") = " + str(wtdelta1)
 
-					# Update DB
+				tmDelta1 = int(line[2]) - int(array[int(count) - 1][2])
+				if  self.Debug == True :
+					print "tmDelta1(" + str(line[2]) + " - " + str(array[int(count) - 1][2]) + ") = " + str(tmDelta1)
+				rate1 = float(wtdelta1) / (float(tmDelta1) / 3600)
+				if  self.Debug == True :
+					print "rate1 = " + str(rate1)
+
+				End1 = int(line[2]) + (float(weightleft) / float(rate1) * float(3600))
+				if  self.Debug == True :
+					print "End1 (" + str(line[2]) + str((float(weightleft) / float(rate1) * float(3600))) + "} = " + str(End1)
+
+#
+# Update DB
+#
+
 					strsql = "UPDATE DataCalc SET rate1 = " + str(rate1) + ", rateall = " + str(
 					rateall) + ", endall = " + str(endall) + ", End1 = " + str(End1) + "  where Series = " + str(line[0]) + " and Cycle = " + str(line[1]) + " and Timestamp = " + str(line[2]) + " ;"
-					if self.Debug:
+					if  self.Debug == True :
 						print "strsql DataCalc Update = " + str(strsql)
 					cur.execute(strsql)
 					connection.commit()
@@ -398,7 +449,7 @@ class modPC:
 	def time2epoch(self, year, month, day, hour, minute):
 		# "Day.Month.year hours:Minutes
 		date_time = str(day) + '.' + str(month) + '.' + str(year) + ' ' + str(hour) + ':' + str(minute) + ':00'
-		if self.Debug:
+		if  self.Debug == True :
 			print 'date_time  ' + str(date_time)
 		pattern = '%d.%m.%Y %H:%M:%S'
 		epoch = int(time.mktime(time.strptime(date_time, pattern)))
